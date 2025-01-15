@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather App with Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        #map { height: 400px; margin-top: 20px; }
+        #result h2 { font-family: Arial, sans-serif; }
+        ul { list-style: none; padding: 0; }
+        ul li { margin-bottom: 10px; }
+        ul li a { color: blue; text-decoration: none; }
+    </style>
+</head>
+<body>
+<h1>Weather and City Information</h1>
+<input type="text" id="city" placeholder="Enter city name" />
+<button id="getInfo">Get Info</button>
+<div id="result"></div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script>
+    const getInfoButton = document.getElementById('getInfo');
+    const resultDiv = document.getElementById('result');
+    const mapDiv = document.getElementById('map');
+    let map;
+    getInfoButton.addEventListener('click', async () => {
+        const city = document.getElementById('city').value;
+        if (!city) {
+            resultDiv.innerHTML = "<p>Please enter a city name.</p>";
+            return;
+        }
+        try {
+            const weatherResponse = await fetch(`/api/weather?city=${city}`);
+            const weatherData = await weatherResponse.json();
+            const airQualityResponse = await fetch(`/api/air_quality?lat=${weatherData.coordinates.lat}&lon=${weatherData.coordinates.lon}`);
+            const airQualityData = await airQualityResponse.json();
+            const newsResponse = await fetch(`/api/news?city=${city}`);
+            const newsData = await newsResponse.json();
+            resultDiv.innerHTML = `
+                    <h2>Weather in ${city}</h2>
+                    <p>Temperature: ${weatherData.temperature}°C</p>
+                    <p>Feels Like: ${weatherData.feels_like}°C</p>
+                    <p>Description: ${weatherData.description}</p>
+                    <img src="${weatherData.icon}" alt="Weather icon" />
+                    <p>Coordinates: [Lat: ${weatherData.coordinates.lat}, Lon: ${weatherData.coordinates.lon}]</p>
+                    <p>Humidity: ${weatherData.humidity}%</p>
+                    <p>Pressure: ${weatherData.pressure} hPa</p>
+                    <p>Wind Speed: ${weatherData.wind_speed} m/s</p>
+                    <p>Country Code: ${weatherData.country_code}</p>
+                    <p>Rain Volume (last 3 hours): ${weatherData.rain_volume} mm</p>
+                `;
+            resultDiv.innerHTML += `
+                    <h2>Air Quality</h2>
+                    <p>AQI: ${airQualityData.list[0].main.aqi}</p>
+                    <p>CO: ${airQualityData.list[0].components.co} µg/m³</p>
+                    <p>NO: ${airQualityData.list[0].components.no} µg/m³</p>
+                    <p>O3: ${airQualityData.list[0].components.o3} µg/m³</p>
+                `;
+            resultDiv.innerHTML += `
+                    <h2>News</h2>
+                    <ul>
+                        ${newsData.articles.map(article => `
+                            <li>
+                                <a href="${article.url}" target="_blank">${article.title}</a>
+                                <p>${article.description}</p>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            if (!map) {
+                map = L.map('map').setView([weatherData.coordinates.lat, weatherData.coordinates.lon], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors',
+                }).addTo(map);
+            } else {
+                map.setView([weatherData.coordinates.lat, weatherData.coordinates.lon], 13);
+            }
+            L.marker([weatherData.coordinates.lat, weatherData.coordinates.lon]).addTo(map)
+                .bindPopup(`
+                        <b>${city}</b><br>
+                        ${weatherData.description}<br>
+                        Temp: ${weatherData.temperature}°C<br>
+                        Feels Like: ${weatherData.feels_like}°C
+                    `).openPopup();
+        } catch (error) {
+            resultDiv.innerHTML = `<p>Error fetching data: ${error.message}</p>`;
+        }
+    });
+</script>
+</body>
+</html>
+
